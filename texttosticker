@@ -1,0 +1,73 @@
+import argparse
+import socket
+from datetime import datetime
+
+
+printer_ip = "10.40.44.3"
+printer_port = 9100
+
+def generate_zpl_label(id, title, person):
+    date = datetime.now().strftime('%d-%m-%Y %H:%M')
+    return f"""
+^XA
+^FO5,20^FR^A0,172^FD{title}^FS
+
+
+^XZ
+"""
+
+def print_label(printer_ip, printer_port, zpl_command):
+    try:
+        printer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        printer_socket.connect((printer_ip, printer_port))
+        printer_socket.send(zpl_command.encode())
+        printer_socket.close()
+        print("Label sent to the printer.")
+        return True
+    except socket.error as e:
+        print(f"Error connecting to the printer: {e}")
+        return False
+
+def read_ids_from_txt(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            ids = file.read().splitlines()
+        return ids
+    except FileNotFoundError:
+        print(f"File '{file_path}' not found.")
+        return []
+
+def main():
+    parser = argparse.ArgumentParser(description="Print labels from a text file.")
+    parser.add_argument("-f", "--file", default="ids.txt", help="Path to the text file.")
+    parser.add_argument("-t", "--title", default="WATERCLICK DISCONNECTEC", help="Title for the label.")
+    parser.add_argument("-p", "--person", default="", help="Person for the label.")
+    parser.add_argument("-c", "--copies", type=int, default=1, help="Number of copies for each label.")
+    args = parser.parse_args()
+
+    txt_file = args.file
+    title = "ETHER"
+    person = args.person
+    copies = 29
+
+    print(f"Reading data from '{txt_file}'...")
+    ids = read_ids_from_txt(txt_file)
+    if not ids:
+        print("No data found in the file. Exiting.")
+        return
+    print("Data read successfully.")
+
+    print("Processing rows and printing labels...")
+    print_counter = 0
+    for id in ids:
+        for _ in range(copies):
+            print(f"Printing label for ID {id} (copy {_+1}/{copies})...")
+            zpl_label = generate_zpl_label(id, title, person)
+            if print_label(printer_ip, printer_port, zpl_label):
+                print_counter += 1
+            else:
+                print("Failed to print the label. Skipping to the next label.")
+    print(f"Finished processing rows and printing labels. Total labels printed: {print_counter}")
+
+if __name__ == "__main__":
+    main()
