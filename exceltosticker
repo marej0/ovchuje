@@ -1,0 +1,65 @@
+import re
+import argparse
+import os.path
+import openpyxl
+from openpyxl import Workbook
+from openpyxl.worksheet.datavalidation import DataValidation
+
+def simplify_eth(port_str):
+    return re.sub(r'Ethernet', 'Eth', port_str)
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-f", "--file", help="input txt file. preferably project name, will output xlsx file with same name", type=str, default="input.txt")
+    parser.add_argument("-o", "--output", help="output xlsx file", type=str, default="output.xlsx")
+    return parser.parse_args()
+
+def read_file(file_path):
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Error: input file '{file_path}' does not exist")
+    with open(file_path, 'r') as input_file:
+        return input_file.readlines()
+
+def create_workbook():
+    wb = Workbook()
+    ws = wb.active
+    header = ['Device A', 'Port A', 'pp in', 'pp out', 'Device B', 'Port B', 'Print?']
+    ws.append(header)
+
+    bool_validation = DataValidation(type="list", formula1='"TRUE,FALSE"', showDropDown=False, showInputMessage=True, allow_blank=True)
+    bool_validation.errorStyle = 'stop'
+    bool_validation.showErrorMessage = True
+    return wb, ws, bool_validation
+
+def process_lines(lines, ws, bool_validation):
+    for line in lines:
+        devices_ports = re.split(r'\s*<=>\s*|\s*<>\s*', line.strip())
+        if len(devices_ports) != 2:
+            print(f"\tError: invalid line format: '{line.strip()}'")
+            continue
+        device_a, port_a = devices_ports[0].split()
+        device_b, port_b = devices_ports[1].split()
+        port_a = simplify_eth(port_a)
+        port_b = simplify_eth(port_b)
+        ws.append([device_a, port_a, '', '', device_b, port_b, 'TRUE'])
+
+        cell = ws.cell(row=ws.max_row, column=7)
+        bool_validation.ranges.add(f'{cell.coordinate}:{cell.coordinate}')
+
+def save_workbook(wb, output_path):
+    try:
+        wb.save(output_path)
+        print(f"Output saved to '{output_path}'")
+    except IOError:
+        print(f"\tError: unable to save the output file '{output_path}'")
+
+def main():
+    args = parse_arguments()
+    lines = read_file(args.file)
+    wb, ws, bool_validation = create_workbook()
+    process_lines(lines, ws, bool_validation)
+    ws.add_data_validation(bool_validation)
+    save_workbook(wb, args.output)
+
+if __name__ == "__main__":
+    main()
